@@ -2,6 +2,12 @@
 const tileSize = 32;
 const scale = 0.5;
 const PlayerScale = 1;
+const inputs = {
+    'up': false,
+    'down': false,  
+    'left': false,
+    'right': false
+};
 
 // MANAGE THE SOCKET CONNECTION
 const socket = io('ws://localhost:5000');
@@ -9,14 +15,24 @@ const socket = io('ws://localhost:5000');
 // Connection Event
 socket.on('connect', ()=> {
     console.log("connected");
+    console.log("Socket ID: ", socket.id);
 });
 
 // Get the map from the server
 let map = [[]];
 socket.on('map', (mapLoaded) => {
-    //console.log("Map Received: ",mapLoaded);
+    console.log("Map Loaded");
     map = mapLoaded;
 });
+
+// Get the player positions from the server
+let players = [];
+socket.on('players', (playersData) => {
+    players = playersData;
+    //console.log(players);
+});
+
+
 
 
 // LOAD IMAGES
@@ -26,6 +42,7 @@ const mapImage = new Image();
 mapImage.src = './snowy-sheet.png';
 const tilesPerRow = mapImage.width / tileSize;
 const tilesPerCol = mapImage.height / tileSize;
+
 
 // Load the player image
 const playerImage = new Image();
@@ -46,14 +63,57 @@ window.addEventListener('resize', ()=> {
 });
 
 
+// keyboard events
+window.addEventListener('keydown', (e) => {
+    
+    if (e.key === 'w' || e.key === 'ArrowUp') {
+        inputs.up = true;
+    }
+    else if (e.key === 's' || e.key === 'ArrowDown') {
+        inputs.down = true;
+    }
 
+    if (e.key === 'a' || e.key === 'ArrowLeft') {
+        inputs.left = true;
+    }
+    else if (e.key === 'd' || e.key === 'ArrowRight') {
+        inputs.right = true;
+    }
 
+    // every time a key is pressed, send the inputs to the server
+    socket.emit('inputs', inputs);
+});
 
+window.addEventListener('keyup', (e) => {
+    
+    if (e.key === 'w' || e.key === 'ArrowUp') {
+        inputs.up = false;
+    }
+    else if (e.key === 's' || e.key === 'ArrowDown') {
+        inputs.down = false;
+    }
+    
+    if (e.key === 'a' || e.key === 'ArrowLeft') {
+        inputs.left = false;
+    }
+    else if (e.key === 'd' || e.key === 'ArrowRight') {
+        inputs.right = false;
+    }
+
+    socket.emit('inputs', inputs);
+});
 
 
 
 function drawMap()
 {
+    console.log("Drawing Map");
+    if (map.length === 0)
+    {
+        socket.emit('getMap');
+        return;
+    }
+
     for(let row = 0; row < map.length; row++)
     {
         for(let col = 0; col < map[row].length; col++)
@@ -81,27 +141,21 @@ function drawPlayer(x,y)
     ctx.drawImage(playerImage,x,y, playerImage.width * PlayerScale, playerImage.height * PlayerScale);
 }
 
-// get mouse position
-function getMousePos(canvas, evt) {
-    var rect = canvas.getBoundingClientRect();
-    return {
-        x: evt.clientX - rect.left,
-        y: evt.clientY - rect.top
-    };
+function drawPlayers()
+{
+    for (const player of players)
+    {
+        drawPlayer(player.x,player.y);
+    }
 }
 
-canvas.addEventListener('mousedown', (event) => {
-    mousePos = getMousePos(canvas, event);
-    console.log(mousePos);
-});
 
-let mousePos = {x:0,y:0};
 // main game loop
 function mainloop()
 {
     ctx.clearRect(0,0,canvas.width,canvas.height);
     drawMap();
-    drawPlayer(mousePos.x,mousePos.y);
+    drawPlayers();
     window.requestAnimationFrame(mainloop);
 }
 
