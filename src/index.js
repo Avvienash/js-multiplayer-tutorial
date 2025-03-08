@@ -207,7 +207,9 @@ async function main()
 
     app.use(express.static("public"));
 
-    httpServer.listen(PORT);
+    httpServer.listen(PORT,() => {
+        console.log("Server is listening on port: ",PORT);
+    });
 
     let lastTime = Date.now();
     setInterval(() => {
