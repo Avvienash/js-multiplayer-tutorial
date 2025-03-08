@@ -13,8 +13,54 @@ const TICK_RATE = 30;
 const SPEED = 5;
 const SNOWBALL_SPEED = 10;
 const inputsMap = {};
+const PLAYER_WIDTH = 32;
+const PLAYER_HEIGHT = 32;
+const TILE_SIZE = 32;
 let players = [];
 let snowballs = [];
+let ground2D, decals2D;
+
+// Rectangle Collision Detection
+function isCollidingRect(rect1,rect2)
+{
+    return  (rect1.x < rect2.x + rect2.w &&
+            rect1.x + rect1.w > rect2.x &&
+            rect1.y < rect2.y + rect2.h &&
+            rect1.y + rect1.h > rect2.y);
+}
+
+// Coliision Detection 
+function isCollidingWithMap(object)
+{
+    for(let row = 0; row < decals2D.length; row++)
+    {
+        for(let col = 0; col < decals2D[row].length; col++)
+        {   
+            if (decals2D[row][col])
+            {
+                const playerRect = {
+                    x: object.x,
+                    y: object.y,
+                    w: object.w,
+                    h: object.h
+                };
+
+                const tileRect = {
+                    x: col * TILE_SIZE,
+                    y: row * TILE_SIZE,
+                    w: TILE_SIZE,
+                    h: TILE_SIZE
+                };
+
+                if (isCollidingRect(playerRect,tileRect))
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
 
 
 // Define the tick function
@@ -23,6 +69,8 @@ function tick(delta)
     //console.log("Delta: ",delta);
     for ( const player of players)
     {
+        const prevX = player.x;
+        const prevY = player.y;
         const inputs = inputsMap[player.id];
         if (inputs)
         {
@@ -42,8 +90,16 @@ function tick(delta)
             {
                 player.x += SPEED*delta/TICK_RATE;
             }
+        }
 
-
+        if (isCollidingWithMap({
+            x: player.x,
+            y: player.y,
+            w: PLAYER_WIDTH,
+            h: PLAYER_HEIGHT}))
+        {
+            player.x = prevX;
+            player.y = prevY;
         }
     }
 
@@ -55,10 +111,21 @@ function tick(delta)
         snowball.y += parseInt(Math.sin(snowball.angle) * SNOWBALL_SPEED*delta/TICK_RATE);
         snowball.time_left -= delta;
 
+        // check if snowball hits a wall
+        if (isCollidingWithMap({
+            x: snowball.x,
+            y: snowball.y,
+            w: 5,
+            h: 5
+        }))
+        {
+            snowball.time_left = 0;
+        }
+
         // check if snowball hits a player
         for (const player of players)
         {
-            if (((snowball.x - player.x)**2 + (snowball.y - player.y)**2 < 200) && snowball.player_id !== player.id)
+            if (((snowball.x - player.x)**2 + (snowball.y - player.y)**2 < (PLAYER_WIDTH/2)**2) && snowball.player_id !== player.id)
             {
                 snowball.time_left = 0;
                 player.x = 0;
@@ -76,13 +143,14 @@ function tick(delta)
 
 
 // create the socket server
+const PORT = process.env.PORT || 5000;
 const io = new Server(httpServer);
 const loadMap = require('./mapLoader');
 
 async function main()
 {
     
-    const {ground2D, decals2D} = await loadMap();
+    ({ground2D, decals2D} = await loadMap());
 
     io.on('connect',(socket) => {
         console.log("User Connected: ",socket.id);
@@ -139,7 +207,7 @@ async function main()
 
     app.use(express.static("public"));
 
-    httpServer.listen(5000);
+    httpServer.listen(PORT);
 
     let lastTime = Date.now();
     setInterval(() => {
