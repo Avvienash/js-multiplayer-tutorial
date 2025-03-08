@@ -13,7 +13,7 @@ let cameraY = 0;
 const snowballRadius = 5;
 
 // MANAGE THE SOCKET CONNECTION
-const socket = io('ws://localhost:5000'); 
+const socket = io();
 
 // Connection Event
 socket.on('connect', ()=> {
