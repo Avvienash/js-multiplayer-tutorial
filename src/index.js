@@ -2,7 +2,6 @@
 const express = require("express");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
-const { Z_BEST_SPEED } = require("zlib");
 
 // create the express app
 const app = express();
@@ -12,13 +11,16 @@ const httpServer = createServer(app);
 // Define the TICK_RATE
 const TICK_RATE = 30;
 const SPEED = 5;
+const SNOWBALL_SPEED = 10;
 const inputsMap = {};
 let players = [];
+let snowballs = [];
 
 
 // Define the tick function
-function tick()
+function tick(delta)
 {
+    //console.log("Delta: ",delta);
     for ( const player of players)
     {
         const inputs = inputsMap[player.id];
@@ -26,24 +28,50 @@ function tick()
         {
             if (inputs.up)
             {
-                player.y -= SPEED;
+                player.y -= SPEED*delta/TICK_RATE;
             }
-            if (inputs.down)
+            if (inputs.down)    
             {
-                player.y += SPEED;
+                player.y += SPEED*delta/TICK_RATE;
             }
             if (inputs.left)
             {
-                player.x -= SPEED;
+                player.x -= SPEED*delta/TICK_RATE;
             }
             if (inputs.right)
             {
-                player.x += SPEED;
+                player.x += SPEED*delta/TICK_RATE;
+            }
+
+
+        }
+    }
+
+
+
+    for (const snowball of snowballs)
+    {
+        snowball.x += parseInt(Math.cos(snowball.angle) * SNOWBALL_SPEED*delta/TICK_RATE);
+        snowball.y += parseInt(Math.sin(snowball.angle) * SNOWBALL_SPEED*delta/TICK_RATE);
+        snowball.time_left -= delta;
+
+        // check if snowball hits a player
+        for (const player of players)
+        {
+            if (((snowball.x - player.x)**2 + (snowball.y - player.y)**2 < 200) && snowball.player_id !== player.id)
+            {
+                snowball.time_left = 0;
+                player.x = 0;
+                player.y = 0;
+                break;
             }
         }
     }
 
+    snowballs = snowballs.filter((snowball) => snowball.time_left > 0);
+
     io.emit("players",players);
+    io.emit("snowballs",snowballs);
 }
 
 
@@ -54,13 +82,17 @@ const loadMap = require('./mapLoader');
 async function main()
 {
     
-    const map2D = await loadMap();
+    const {ground2D, decals2D} = await loadMap();
 
     io.on('connect',(socket) => {
         console.log("User Connected: ",socket.id);
 
         // when the user connects, send them the map
-        socket.emit("map",map2D);
+        socket.emit("map",
+            {
+                ground: ground2D,
+                decals: decals2D,
+            });
         console.log("Map Sent to: ",socket.id);
 
         // add the user to the players array
@@ -71,13 +103,32 @@ async function main()
         });
 
 
+
         socket.on("getMap",() => {
-            socket.emit("map",map2D);
+            socket.emit("map",
+            {
+                ground: ground2D,
+                decals: decals2D
+            });
         });
 
         socket.on("inputs",(inputs) => {
             inputsMap[socket.id] = inputs;
         });
+
+
+        socket.on("shoot",(angle) => {
+            const player = players.find((player) => player.id === socket.id);
+            snowballs.push({
+                x: player.x,
+                y: player.y,
+                angle,
+                time_left: 1000,
+                player_id: socket.id
+            });
+        }
+        );
+
 
         socket.on("disconnect",() => {
             console.log("User Disconnected: ",socket.id);
@@ -90,7 +141,13 @@ async function main()
 
     httpServer.listen(5000);
 
-    setInterval(tick,1000/TICK_RATE);
+    let lastTime = Date.now();
+    setInterval(() => {
+        const currentTime = Date.now();
+        const delta = currentTime - lastTime;
+        lastTime = currentTime;
+        tick(delta);
+    },1000/TICK_RATE);
 }
 
 main();

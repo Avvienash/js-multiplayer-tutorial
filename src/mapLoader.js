@@ -11,18 +11,32 @@ async function loadMap()
         });
     });
 
-    const layers = map.layers[0];
-    const tiles = layers.tiles;
+    
+    const ground_tiles = map.layers[0].tiles;
+    const decals_tiles = map.layers[1].tiles;
 
-    const map2D = new Array(map.height).fill('').map(() => new Array(map.width));
-    for (let row = 0; row < map.height; row++) {
-        for (let col = 0; col < map.width; col++) {
-            const tile = tiles[row * map.height + col];
-            map2D[row][col] = { id: tile.id, gid: tile.gid };
+    const ground2D = new Array(map.height).fill('').map(() => new Array(map.width));
+    const decals2D = new Array(map.height).fill('').map(() => new Array(map.width));
+    for (let row = 0; row < map.height; row++) 
+    {
+        for (let col = 0; col < map.width; col++)
+        {
+            const ground_tile = ground_tiles[row * map.height + col];
+            const decals_tile = decals_tiles[row * map.height + col];
+
+            if (ground_tile)
+            {
+                ground2D[row][col] = { id: ground_tile.id, gid: ground_tile.gid };
+            }
+        
+            if (decals_tile)
+            {
+                decals2D[row][col] = { id: decals_tile.id, gid: decals_tile.gid };
+            }
         }
     }
 
-    return map2D;
+    return {ground2D, decals2D};
 }
 
 module.exports = loadMap;
